@@ -1,0 +1,220 @@
+http://programming.im.ncnu.edu.tw/Chapter12.htm
+
+C語言允許陣列指標和函數三者混合宣告,以表達複雜的資料結構。對於要撰寫比較複雜的應用程式來說,了解這三者的關係是非常必要的。例如下面的變數x到底是甚麼?
+
+char (*x[])();
+
+要看懂這些東西,首先要查型別與運算裡有關優先權與結合序的表格,得到()[]是第一優先權左結合,而*是第二優先權右結合。在看變數宣告時,如同運算式的推演過程,必須遵守C程式語言對*()[]的優先權定義。接下來請讀者背誦下面的口訣
+
+    看見[]就說array[] of
+    看見*就說pointer to
+    看見變數後面的()就說function() returning
+
+上述口訣配合*()[]的優先權,依序找出其執行的順序,每看到運算符號就把這幾句口訣念出來。因此變數的意義如下面範例
+
+char *x;         // x: a pointer to char
+char x[3];       // x: an array[3] of char
+char x();        // x: a function() returning char
+char *x[3];      // x: an array[3] of pointer to char
+char (*x)[3];    // x: a pointer to array[3] of char
+char **x;        // x: a pointer to pointer to char
+char *x();       // x: a function() returning pointer to char
+char *x()[3];    // x: a function() returning array[3] of pointer to char
+char (*x[])();   // x: an array[] of pointer to function() returning char
+char (*x())();   // x: a function() returning pointer to function() returning char
+char (*(*x)[])(int, int); // x: a pointer to array[] of pointer to function(int,int) returning char
+
+讀者在閱讀上面範例時,千萬不要把這些英文翻成中文! 英文文法是後面修飾前面,比中文更能確切表達文句的意義,因此在處理這些複雜宣告時,用英文去了解即可。
+
+在讀運算式時,則每看到一個運算符號,就把宣告前面的口訣拿掉一個,就是該運算式的意義
+
+char *x;         // x: a pointer to char
+*x : a char
+
+char *x[3];      // x: an array[3] of pointer to char
+x[0] : a pointer to char
+
+char **x;        // x: a pointer to pointer to char
+*x : a pointer to char
+
+char *x();       // x: a function() returning pointer to char
+x() : a pointer to char
+
+char *x()[3];    // x: a function() returning array[3] of pointer to char
+x()[1] : a pointer to char
+
+下面的宣告摘錄自"The C Programming Language"第二版的第122頁,請讀者寫出其宣告意義,並參考該書核對答案,相信可以增強讀者的自信:
+
+char **argv;
+int (*daytab)[13];
+int *daytab[13];
+void *comp();
+void (*comp)();
+char (*(*x())[])();
+char (*(*x[3])())[5];
+
+以下是計算積分的程式範例,用到pointer to function的觀念
+
+#include <stdio.h>
+#include <math.h>
+
+/*
+ * 計算平方
+ */
+double square(double x) {
+    return x * x;
+}
+
+/*
+ * 計算三次方
+ */
+double cube(double x) {
+    return x * x * x;
+}
+
+/*
+ * 計算f()在(x,y)之間以n等份來逼近的積分數值,使用梯形法
+ */
+double integral(double (*f)(double), int n, double x, double y) {
+    int i;
+    double gap = (y - x) / n;
+    double fy1 = (*f)(x);
+    double fy2 = (*f)(x + gap);
+    double area = 0;
+    for (i = 0; i < n; i++) {
+        area += (fy1 + fy2) * gap / 2; // 使用梯形面積公式 
+        fy1 = fy2;
+        fy2 = (*f)(x + gap * (i + 1)); //下底
+    }
+    return area;
+}
+
+int main() {
+    char fun[100];
+    int n;
+    double x, y;
+    double (*f)(double); // f: a pointer to function(double) returning double
+    while (scanf("%99s",fun) != EOF) { // EOF定義於stdio.h內,一般系統上為-1
+        if (strcmp(fun,"square")==0) {
+            f = square;
+        } else if (strcmp(fun,"cube")==0) {
+            f = cube;
+        } else if (strcmp(fun,"sqrt")==0) {
+            f = sqrt; // sqrt is defined in math.h
+        } else if (strcmp(fun,"cbrt")==0) {
+            f = cbrt; // cbrt is defined in math.h
+        } else if (strcmp(fun,"end")==0) {
+            break;
+        } else {
+            printf("Unknown function\n");
+            continue;
+        }
+        scanf("%d%lf%lf", &n, &x, &y);
+        printf("Integral of %s from %lf to %lf is: %lf\n", fun, x, y, integral(f, n, x, y));
+    }
+    return 0;
+}
+
+如果要讓積分算得更快的話,integral也可改寫如下
+
+double integral(double (*f)(double), int n, double x, double y) {
+    int i;
+    double area = ((*f)(x) + (*f)(y)) / 2.0L;
+    double gap = (y - x) / n;
+    double next = x;
+    for (i = 1; i < n; i++) {
+        area += (*f)(next += gap);
+    }
+    return area * gap;
+}
+
+上面寫法會比較快的精神在於,讓迴圈內的東西越簡單越好,因為迴圈通常是程式花最多時間的地方。
+命令列參數
+
+在命令列(DOS視窗或UNIX Shell)下達指令時,常需要告訴該指令一些訊息,如
+
+gcc -c hello.c
+
+告訴gcc我們要編譯的原始檔是hello.c,而且-c說只要編譯不要產生執行檔。這些參數是由Shell(命令解譯程式)透過作業系統傳遞給應用程式的。那麼寫C程式的人要如何得到這些資訊呢?其實我們前面範例裡的main都把一些參數忽略了,完整的寫法應如下:
+
+#include <stdio.h>
+int main(int argc, char *argv[]) {
+    int i;
+    for (i = 0; i < argc; i++) {
+        printf("option %i = %s\n", i, argv[i]);
+    }
+}
+
+如果我們下達a.out one two three則會印出
+
+option 0 = a.out
+option 1 = one
+option 2 = two
+option 3 = three
+
+也就是說參數argc告訴我們命令列上有幾個字串(含執行檔檔名),argv則是個array[] of pointer to char,紀錄命令列上的所有字串。UNIX上有個有趣的指令叫做echo,會把參數全部印出來
+
+>echo a b c
+a b c
+>
+
+
+這個程式很容易寫:
+
+#include <stdio.h>
+int main(int argc, char *argv[]) {
+    int i;
+    for (i = 1; i < argc; i++) {
+        if (i != 1) {
+            printf(" ");
+        }
+        printf("%s", argv[i]);
+    }
+    printf("\n");
+}
+
+變長參數列
+
+在說明函數的章節裡,所有範例函數的參數個數都是固定的,但讀者有沒有發覺使用printf,scanf函數時,我們所給予的參數個數卻是不定長的!本節說明如何定義具有不定長參數的函數。
+
+printf的宣告如下:
+
+int printf(char *fmt, ...)
+
+處理不定長參數需要用到<stdarg.h>裡面的函數。va_list型態可用來存取每一個參數:
+
+#include <stdarg.h>
+// or #include <sys/varargs.h>
+void minprintf(char *fmt, ...) {
+    va_list ap; /* pointer to each unnamed arg in turn */
+    char *p, *sval;
+    int ival;
+    double dval;
+    va_start(ap, fmt); /* make ap point to 1st unnamed arg */
+    for (p = fmt; *p; p++) { // check each character
+        if (*p != '%') { // 不是特殊字元,直接輸出即可
+            putchar(*p);
+            continue;
+        }
+        switch(*++p) { // 檢查%的下一個字元是甚麼
+        case 'd':
+            ival = va_arg(ap, int);
+            printf("%d", ival);
+            break;
+        case 'f':
+            dval = va_arg(ap, double);
+            printf("%f", dval);
+            break;
+        case 's':
+            for (sval = va_arg(ap, char *); *sval; sval++) { // 印出sval所指到的所有字元
+                putchar(*sval);
+            }
+            break;
+        default :
+            putchar(*p);
+            break;
+        }
+    }
+    va_end(ap); // clean up when done */
+}
+
